@@ -2,12 +2,13 @@ out_file=filtru
 topo=topology.txt
 imgs=imagini.txt
 out=statistica.txt
+processes=12
 
 build:
 	mpicc echo.c -o $(out_file)
 
 run:
-	./$(out_file) $(topo) $(imgs) $(out) 
+	mpirun -np $(processes) $(out_file) $(topo) $(imgs) $(out) 
 
 clean:
 	rm -rf 343C1_RotschingCristofor_Tema3.zip

@@ -41,7 +41,7 @@
 	int * deTrimis;
 
 void initTopology(int ** topology , int size ,int value);
-int * parseInputAsArray(char * topologyName, char * sudokuName , char * mode , int rank);
+int * parseInputAsArray(char * topologyName, int size , char * mode , int rank);
 int * getSudokuFragment(char * filename , int rank);
 int ** createTopologyUsingMessages(int size , int rank , int * parent , int * adiacenta , int topology[size][size] , int emptyMatrix[size][size]);
 int isEmptyMessage(int * receivedMessage, int size );
@@ -83,19 +83,18 @@ int main(int argc , char ** argv){
 	
 	//number of nodes
 	//not square
-	sqrtTopoSize = getNumberOfNodes(argv[2], "r+");
-	solutii = (int *) calloc (10000 * sqrtTopoSize * sqrtTopoSize , sizeof(int));
-	primite = (int *) calloc (10000 * sqrtTopoSize * sqrtTopoSize, sizeof(int));
+	//sqrtTopoSize = getNumberOfNodes(argv[2], "r+");
+	//solutii = (int *) calloc (10000 * sqrtTopoSize * sqrtTopoSize , sizeof(int));
+	//primite = (int *) calloc (10000 * sqrtTopoSize * sqrtTopoSize, sizeof(int));
 	
 	
-	topoSize = sqrtTopoSize * sqrtTopoSize;
+	// topoSize = sqrtTopoSize * sqrtTopoSize;
+	topoSize = size;
 	//square
 	int emptyMatrix[topoSize][topoSize];
 	int topology[topoSize][topoSize];
 	int routingVector[topoSize];
-		
-	
-	sudokuMatrix = (int *) calloc (topoSize * topoSize , sizeof(int));
+
 	aux = (int * )calloc (10000 * topoSize * topoSize , sizeof(int));
 	deTrimis = (int *) calloc (10000 * topoSize * topoSize , sizeof(int));
 		
@@ -111,7 +110,7 @@ int main(int argc , char ** argv){
 	}
 	
 	//arrays
-	top_nou = parseInputAsArray(argv[1], argv[2] , "r+", rank);
+	top_nou = parseInputAsArray(argv[1], size, "r+", rank);
 	
 	matrix = createTopologyUsingMessages(topoSize , rank , &parent , top_nou , topology , emptyMatrix);
 	
@@ -283,17 +282,11 @@ void printArray(int size , int array[size]){
 }
 
 
-int * parseInputAsArray(char * topologyName, char * sudokuName , char * mode , int grad){
+int * parseInputAsArray(char * topologyName, int size, char * mode , int grad){
 	int i = 0 ;
-	int size;
 	int currentPosition =0 ;
 	int * outArray; 
 	 
-	FILE * sudokuFile = fopen(sudokuName , mode);
-	fscanf(sudokuFile , "%d" , &size);
-	fclose(sudokuFile);
-	
-	
 	outArray = (int *) calloc (size * size , sizeof(int));
 	FILE * topologyFile = fopen(topologyName , mode );
 
@@ -302,13 +295,13 @@ int * parseInputAsArray(char * topologyName, char * sudokuName , char * mode , i
 						
 		int parinte;
 		int copil;
-		char * tok = strtok(line , " -");
+		char * tok = strtok(line , ":- ");
 		
 		sscanf(tok, "%d" , &parinte);
 		//get adjancency nodes
 		if(parinte == grad){
 			while(tok != NULL){
-				tok = strtok(NULL , " -");
+				tok = strtok(NULL , ":- ");
 				if(tok != NULL){
 					sscanf(tok, "%d" , &copil);
 					outArray[copil] = 1;
