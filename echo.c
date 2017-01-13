@@ -13,6 +13,15 @@
 #define CONTROL_MESSAGE 30
 #define DATA_MESSAGE 40
 
+//tema 3
+#define EFFECT_MESSAGE 50
+
+//tema 3
+#define BLUR 1010
+#define SMOOTH 2020
+#define SHARPEN 3030
+#define MEAN_REMOVAL 4040
+
 #define TRUE 1 
 #define FALSE 0
 
@@ -42,7 +51,7 @@
 
 	int const smooth_matrix[3][3] = {{1,1,1},{1,1,1},{1,1,1}};
 	int const blur_matrix[3][3] = {{1,2,1},{2,4,2},{1,2,1}};
-	int const sharpen_matrix[3][3] = {{0,-2,0},{-2,11,-2},{0,-2,0}};
+	int const sharpened_matrix[3][3] = {{0,-2,0},{-2,11,-2},{0,-2,0}};
 	int const mean_removal_matrix[3][3] = {{-1,-1.-1},{-1,9,-1},{-1,-1,-1}};
 
 	int const smooth_factor = 9;
@@ -81,6 +90,7 @@ void printVectorMatrix(int size , int * matrix);
 void printMessage(int source , int destination , int * array , int size , int messageTYPE , int direction);
 void printMessageMatrix(int a , int b , int size , int messageType, int direction, int matrix[size][size]);
 void parseImages(char *filename, int size, int topology[size][size]);
+void startProcessing(int parent, int rank, int size, int topoloy[size][size]);
 
 int main(int argc , char ** argv){
 	
@@ -137,11 +147,11 @@ int main(int argc , char ** argv){
 	}else{
 		//receive image from parent
 		//send to neighbors
+		startProcessing(parent, rank, size, topology);
 	}
 
 	printf("Rank %d has\n", rank);
 	printMatrix(topoSize, topology);
-
 
 	/*
 	 * Apply filters and count statistics
@@ -618,6 +628,15 @@ int getNumberOfNeighbors(int size , int rank , int parent , int topology[size][s
 	
 	int i = 0;
 	int summ = 0; 
+
+	if (rank == 0){
+		for (i = 0; i < size; ++i){
+			if(topology[rank][i] == 1){
+				summ++;
+			}
+		}
+		return summ;
+	}
 	
 	for(i = 0 ; i < size ; ++i){
 		if(topology[rank][i] == 1 && i != rank  && i != parent){
@@ -851,34 +870,90 @@ void parseImages(char *filename, int size, int topology[size][size]){
 		size_t header_len = 0;
 		int header_read = 0;
 		int header_i = 0;
-		for (header_i = 0; header_i < 4; ++header_i){	
+
+		//process_headers
+		int max_color = 0;
+		int x = 0;
+		int y = 0;
+		for (header_i = 0; header_i < 4; ++header_i){
 			header_read = getline(&header_line, &header_len, image);
 			fputs(header_line, out_image);
-		}
-
-		fflush(out_image);
-		fclose(out_image);
-
-		int i;
-		for (i = 0; i < size; ++i){
-			if (topology[0][i] == 1){
-
+			//size header
+			if (header_i == 2){
+				x = atoi(strtok(header_line," "));
+				y = atoi(strtok(NULL, " "));
+			}else if (header_i == 3){
+				max_color = atoi(header_line);
 			}
 		}
 
-		if (strcmp(operation, "blur") == 0){
-			printf("Found blur \n");
-
-		}else if (strcmp(operation, "sharpend") == 0){
-			printf("Found sharpend \n");
-
-		}else if (strcmp(operation, "smooth") == 0){
-			printf("Found smooth \n");
-
-		}else if (strcmp(operation, "mean_removal") == 0){
-			printf("Found mean_removal \n");
-
+		unsigned char *pixels = (unsigned char *)calloc(x * y, sizeof(unsigned char));
+		int pixel_index;
+		for (pixel_index = 0; pixel_index < x * y; pixel_index++){
+			fscanf(image, "%hhu\n", &pixels[pixel_index]);
 		}
+
+		for (pixel_index = 0; pixel_index < x * y; pixel_index++){
+			fprintf(out_image, "%hhu\n", pixels[pixel_index]);
+		}
+
+		int num_neighbors = getNumberOfNeighbors(size, 0, -1, topology);
+		int chunks_size = (x * y)/num_neighbors;
+		unsigned char *top_line;
+		unsigned char *bottom_line;
+		for (i = 0; i < size; ++i){
+			if (topology[0][i] == 1){
+
+				//send effect matrix
+				if (strcmp(operation, "blur") == 0){
+					printf("Found blur \n");
+					MPI_Send(&blur_factor, 1, MPI_INT, i, EFFECT_MESSAGE, MPI_COMM_WORLD);
+				}else if (strcmp(operation, "sharpend") == 0){
+					printf("Found sharpend \n");
+					MPI_Send(&sharpen_factor, 1, MPI_INT, i, EFFECT_MESSAGE, MPI_COMM_WORLD);
+				}else if (strcmp(operation, "smooth") == 0){
+					printf("Found smooth \n");
+					MPI_Send(&smooth_factor, 1, MPI_INT, i, EFFECT_MESSAGE, MPI_COMM_WORLD);
+				}else if (strcmp(operation, "mean_removal") == 0){
+					printf("Found mean_removal \n");
+					MPI_Send(&mean_removal_factor, 1, MPI_INT, i, EFFECT_MESSAGE, MPI_COMM_WORLD);
+				}
+
+				//create bottom and top
+				//send x,y
+				//send top
+				//send bottom
+				//send chunk
+			}
+		}
+
+
+		int i;
+		for (i = 0; i < size; ++i){
+			if (topology[rank][i] == 1){
+				//send chunks
+			}
+		}
+
+
+
+		/*
+		 * Send effect chunk
+		 * Send metadata
+		 */
+
+
+		fflush(out_image);
+		fclose(out_image);
 	}
 	fclose(images_file);
+}
+
+void startProcessing(int parent, int rank, int size, int topoloy[size][size]){
+	MPI_Status status;
+	int effect_type;
+	if (topoloy[parent][rank] == 1 && parent == 0){
+		MPI_Recv(&effect_type, 1, MPI_INT, parent, EFFECT_MESSAGE, MPI_COMM_WORLD, &status);
+		printf("Rank %d received from %d\n", rank, parent);
+	}
 }
