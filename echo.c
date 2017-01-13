@@ -40,6 +40,16 @@
 	int * aux;
 	int * deTrimis;
 
+	int const smooth_matrix[3][3] = {{1,1,1},{1,1,1},{1,1,1}};
+	int const blur_matrix[3][3] = {{1,2,1},{2,4,2},{1,2,1}};
+	int const sharpen_matrix[3][3] = {{0,-2,0},{-2,11,-2},{0,-2,0}};
+	int const mean_removal_matrix[3][3] = {{-1,-1.-1},{-1,9,-1},{-1,-1,-1}};
+
+	int const smooth_factor = 9;
+	int const blur_factor = 16;
+	int const sharpen_factor = 3;
+	int const mean_removal_factor = 1;
+
 void initTopology(int ** topology , int size ,int value);
 int * parseInputAsArray(char * topologyName, int size , char * mode , int rank);
 int * getSudokuFragment(char * filename , int rank);
@@ -70,6 +80,7 @@ void printArray(int size , int array[size]);
 void printVectorMatrix(int size , int * matrix);
 void printMessage(int source , int destination , int * array , int size , int messageTYPE , int direction);
 void printMessageMatrix(int a , int b , int size , int messageType, int direction, int matrix[size][size]);
+void parseImages(char *filename, int size, int topology[size][size]);
 
 int main(int argc , char ** argv){
 	
@@ -109,16 +120,34 @@ int main(int argc , char ** argv){
 		}
 	}
 	
-	//arrays
+	//arrays of neighbors corresponding to the line in the topology
+	//matrix
 	top_nou = parseInputAsArray(argv[1], size, "r+", rank);
 	
+	//determine the topology using message passing with wave algorithm
 	matrix = createTopologyUsingMessages(topoSize , rank , &parent , top_nou , topology , emptyMatrix);
 	
 	//all nodes have the topology matrix after this line
 	MPI_Bcast(&topology , topoSize * topoSize , MPI_INT , 0 , MPI_COMM_WORLD);
 	
+	//parseImages
+	unsigned char *image;
+	if (rank == 0){
+		parseImages(argv[2], size, topology);
+	}else{
+		//receive image from parent
+		//send to neighbors
+	}
+
 	printf("Rank %d has\n", rank);
 	printMatrix(topoSize, topology);
+
+
+	/*
+	 * Apply filters and count statistics
+	 */
+
+
 	/*
 	createRoutingVector(topoSize , rank , parent , topology, &routingVector[0]);
 	sudokuMatrix = getSudokuFragment(argv[2] , rank);
@@ -788,4 +817,68 @@ void printVectorMatrix(int size , int * matrix){
 		printf("\n");
 	}
 	printf("\n");
+}
+
+void parseImages(char *filename, int size, int topology[size][size]){
+
+	FILE * images_file = fopen(filename, "r+");
+	char *operation;
+	char *in_file;
+	char *out_file;
+	int num_images = 0;
+	
+	//read number of images
+	read = getline(&line, &len, images_file);
+	printf("Image file lien = %s\n",line);
+	num_images = atoi(line);
+	int k;
+
+	for (k = 0; k < num_images; ++k){
+		printf("num_images = %d \n", num_images);
+
+		read = getline(&line, &len, images_file);
+		operation = strtok(line, " \n\t");
+		in_file = strtok(NULL, " \n\t");
+		out_file = strtok(NULL, " \n\t");
+		printf("Out file = %s \n", out_file);
+
+		//just read the input file 
+		FILE *image = fopen(in_file, "r");
+		//erase the contents of the file and create the file if it does not exist
+		FILE *out_image = fopen(out_file, "w+");
+		//copy headers
+		char *header_line;
+		size_t header_len = 0;
+		int header_read = 0;
+		int header_i = 0;
+		for (header_i = 0; header_i < 4; ++header_i){	
+			header_read = getline(&header_line, &header_len, image);
+			fputs(header_line, out_image);
+		}
+
+		fflush(out_image);
+		fclose(out_image);
+
+		int i;
+		for (i = 0; i < size; ++i){
+			if (topology[0][i] == 1){
+
+			}
+		}
+
+		if (strcmp(operation, "blur") == 0){
+			printf("Found blur \n");
+
+		}else if (strcmp(operation, "sharpend") == 0){
+			printf("Found sharpend \n");
+
+		}else if (strcmp(operation, "smooth") == 0){
+			printf("Found smooth \n");
+
+		}else if (strcmp(operation, "mean_removal") == 0){
+			printf("Found mean_removal \n");
+
+		}
+	}
+	fclose(images_file);
 }
