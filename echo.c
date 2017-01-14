@@ -15,6 +15,9 @@
 
 //tema 3
 #define EFFECT_MESSAGE 50
+#define TOP_MESSAGE 60
+#define BOTTOM_MESSAGE 70
+#define SIZE_MESSAGE 80
 
 //tema 3
 #define BLUR 1010
@@ -91,6 +94,8 @@ void printMessage(int source , int destination , int * array , int size , int me
 void printMessageMatrix(int a , int b , int size , int messageType, int direction, int matrix[size][size]);
 void parseImages(char *filename, int size, int topology[size][size]);
 void startProcessing(int parent, int rank, int size, int topoloy[size][size]);
+void send_chunks(int size,int topology[size][size],int x,int y,unsigned char *pixels,int rank,int parent);
+void put_pixels(int chunk_size,unsigned char *pixels,int x,int y, unsigned char **bordered_matrix);
 
 int main(int argc , char ** argv){
 	
@@ -898,9 +903,9 @@ void parseImages(char *filename, int size, int topology[size][size]){
 		}
 
 		int num_neighbors = getNumberOfNeighbors(size, 0, -1, topology);
-		int chunks_size = (x * y)/num_neighbors;
-		unsigned char *top_line;
-		unsigned char *bottom_line;
+		int chunk_size = (x * y)/num_neighbors;
+		int current_neighbor = 0;
+
 		for (i = 0; i < size; ++i){
 			if (topology[0][i] == 1){
 
@@ -918,30 +923,44 @@ void parseImages(char *filename, int size, int topology[size][size]){
 					printf("Found mean_removal \n");
 					MPI_Send(&mean_removal_factor, 1, MPI_INT, i, EFFECT_MESSAGE, MPI_COMM_WORLD);
 				}
+				// send x,y
+				MPI_Send(&x, 1, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD);
+				MPI_Send(&y, 1, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD);
+				// //send top
+				// //send bottom
+				// //create bottom and top
+				// unsigned char *top;
+				// unsigned char *bottom;
 
-				//create bottom and top
-				//send x,y
-				//send top
-				//send bottom
+				// if (rank == 0 && current_neighbor == 0){
+				// 	//top = full of 0's
+				// 	top = (unsigned char *)calloc(x, sizeof(unsigned char));
+				// 	bottom = &pixels[(current_neighbor + 1)*chunk_size];
+				// 	//TODO Send it
+				// 	MPI_Send(top, x, MPI_INT, i, TOP_MESSAGE, MPI_COMM_WORLD);
+				// 	MPI_Send(bottom, x, MPI_INT, i, TOP_MESSAGE, MPI_COMM_WORLD);
+				// 	free(top);
+				// }  
+
+				// else if (rank == 0 && current_neighbor == num_neighbors -1){
+				// 	//bottom = full of 0's
+				// 	top = &pixels[current_neighbor * chunk_size - x];
+				// 	bottom = (unsigned char *)calloc(x, sizeof(unsigned char));
+				// 	//TODO Send it
+				// 	MPI_Send(top, x, MPI_INT, i, TOP_MESSAGE, MPI_COMM_WORLD);
+				// 	MPI_Send(bottom, x, MPI_INT, i, TOP_MESSAGE, MPI_COMM_WORLD);
+				// 	free(bottom);
+				// }
+
+				// else{
+				// 	top = &pixels[current_neighbor * chunk_size - x];
+				// 	bottom = &pixels[(current_neighbor + 1)*chunk_size];
+				// 	MPI_Send(top, x, MPI_INT, i, TOP_MESSAGE, MPI_COMM_WORLD);
+				// 	MPI_Send(bottom, x, MPI_INT, i, TOP_MESSAGE, MPI_COMM_WORLD);
+				// }
 				//send chunk
 			}
 		}
-
-
-		int i;
-		for (i = 0; i < size; ++i){
-			if (topology[rank][i] == 1){
-				//send chunks
-			}
-		}
-
-
-
-		/*
-		 * Send effect chunk
-		 * Send metadata
-		 */
-
 
 		fflush(out_image);
 		fclose(out_image);
@@ -949,11 +968,67 @@ void parseImages(char *filename, int size, int topology[size][size]){
 	fclose(images_file);
 }
 
-void startProcessing(int parent, int rank, int size, int topoloy[size][size]){
+void startProcessing(int parent, int rank, int size, int topology[size][size]){
 	MPI_Status status;
 	int effect_type;
-	if (topoloy[parent][rank] == 1 && parent == 0){
-		MPI_Recv(&effect_type, 1, MPI_INT, parent, EFFECT_MESSAGE, MPI_COMM_WORLD, &status);
-		printf("Rank %d received from %d\n", rank, parent);
+	MPI_Recv(&effect_type, 1, MPI_INT, parent, EFFECT_MESSAGE, MPI_COMM_WORLD, &status);
+
+	int  i = 0;
+	for (i = 0; i < size; ++i){
+		if (topology[rank][i] == 1){
+			//send the effect to neighbors
+			MPI_Send(&effect_type, 1, MPI_INT, i, EFFECT_MESSAGE, MPI_COMM_WORLD);
+		}
+	}
+	//recv x and y
+	int x = 0;
+	int y = 0;
+	MPI_Recv(&x, 1, MPI_INT, parent, SIZE_MESSAGE, MPI_COMM_WORLD, &status);
+	MPI_Recv(&y, 1, MPI_INT, parent, SIZE_MESSAGE, MPI_COMM_WORLD, &status);
+
+	for (i = 0; i < size; ++i){
+		if (topology[rank][i] == 1){
+			//send x and y
+			MPI_Send(&x, 1, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD);
+			MPI_Send(&y, 1, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD);
+		}
+	}
+
+	printf("Rank %d received x=%d and y=%d\n", rank, x, y);
+	// //recv top & bottom
+	// unsigned char *top = (unsigned char *)calloc(x, sizeof(unsigned char));
+	// unsigned char *bottom = (unsigned char *)calloc(y, sizeof(unsigned char));
+	// MPI_Recv(top, x, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD, &status);
+	// MPI_Recv(bottom, x, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD, &status);
+}
+
+void send_chunks(int size,int topology[size][size],int x,int y,unsigned char *pixels,int rank,int parent){
+	int current_neighbor = 0;
+	/*
+	 * Calculate chunks
+	 */
+	int num_neighbors = getNumberOfNeighbors(size, rank, parent, topology);
+	int chunk_size = (x * y)/num_neighbors;
+	int chunk_left_over = (x*y)%num_neighbors;
+	/*
+	 * Border the chunks
+	 */
+	while (num_neighbors > 0){
+		if (topology[rank][current_neighbor] == 1){
+			unsigned char *bordered_matrix = NULL;
+			int start_index = current_neighbor * chunk_size;
+			// put_pixels(chunk_size, pixels[start_index], x, y, &bordered_matrix);
+		}
+	}
+	
+
+}
+
+void put_pixels(int chunk_size,unsigned char *pixels,int x,int y, unsigned char **bordered_matrix){
+	/*
+	 * Initialization
+	 */
+	if (*bordered_matrix == NULL){
+		(*bordered_matrix) =(unsigned char *)calloc(chunk_size + x + x + y + y,sizeof(unsigned char));
 	}
 }
