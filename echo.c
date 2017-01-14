@@ -929,35 +929,35 @@ void parseImages(char *filename, int size, int topology[size][size]){
 				// //send top
 				// //send bottom
 				// //create bottom and top
-				// unsigned char *top;
-				// unsigned char *bottom;
+				unsigned char *top;
+				unsigned char *bottom;
 
-				// if (rank == 0 && current_neighbor == 0){
-				// 	//top = full of 0's
-				// 	top = (unsigned char *)calloc(x, sizeof(unsigned char));
-				// 	bottom = &pixels[(current_neighbor + 1)*chunk_size];
-				// 	//TODO Send it
-				// 	MPI_Send(top, x, MPI_INT, i, TOP_MESSAGE, MPI_COMM_WORLD);
-				// 	MPI_Send(bottom, x, MPI_INT, i, TOP_MESSAGE, MPI_COMM_WORLD);
-				// 	free(top);
-				// }  
+				if (rank == 0 && current_neighbor == 0){
+					//top = full of 0's
+					top = (unsigned char *)calloc(x, sizeof(unsigned char));
+					bottom = &pixels[(current_neighbor + 1)*chunk_size];
+					//TODO Send it
+					MPI_Send(top, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
+					MPI_Send(bottom, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
+					free(top);
+				}  
 
-				// else if (rank == 0 && current_neighbor == num_neighbors -1){
-				// 	//bottom = full of 0's
-				// 	top = &pixels[current_neighbor * chunk_size - x];
-				// 	bottom = (unsigned char *)calloc(x, sizeof(unsigned char));
-				// 	//TODO Send it
-				// 	MPI_Send(top, x, MPI_INT, i, TOP_MESSAGE, MPI_COMM_WORLD);
-				// 	MPI_Send(bottom, x, MPI_INT, i, TOP_MESSAGE, MPI_COMM_WORLD);
-				// 	free(bottom);
-				// }
+				else if (rank == 0 && current_neighbor == num_neighbors -1){
+					//bottom = full of 0's
+					top = &pixels[current_neighbor * chunk_size - x];
+					bottom = (unsigned char *)calloc(x, sizeof(unsigned char));
+					//TODO Send it
+					MPI_Send(top, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
+					MPI_Send(bottom, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
+					free(bottom);
+				}
 
-				// else{
-				// 	top = &pixels[current_neighbor * chunk_size - x];
-				// 	bottom = &pixels[(current_neighbor + 1)*chunk_size];
-				// 	MPI_Send(top, x, MPI_INT, i, TOP_MESSAGE, MPI_COMM_WORLD);
-				// 	MPI_Send(bottom, x, MPI_INT, i, TOP_MESSAGE, MPI_COMM_WORLD);
-				// }
+				else{
+					top = &pixels[current_neighbor * chunk_size - x];
+					bottom = &pixels[(current_neighbor + 1)*chunk_size];
+					MPI_Send(top, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
+					MPI_Send(bottom, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
+				}
 				//send chunk
 			}
 		}
@@ -996,10 +996,31 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 
 	printf("Rank %d received x=%d and y=%d\n", rank, x, y);
 	// //recv top & bottom
-	// unsigned char *top = (unsigned char *)calloc(x, sizeof(unsigned char));
-	// unsigned char *bottom = (unsigned char *)calloc(y, sizeof(unsigned char));
-	// MPI_Recv(top, x, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD, &status);
-	// MPI_Recv(bottom, x, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD, &status);
+	unsigned char *top = (unsigned char *)calloc(x, sizeof(unsigned char));
+	unsigned char *bottom = (unsigned char *)calloc(x, sizeof(unsigned char));
+
+	if (parent == 0){
+		MPI_Recv(top, x, MPI_CHAR, parent, TOP_MESSAGE, MPI_COMM_WORLD, &status);
+		MPI_Recv(bottom, x, MPI_CHAR, parent, TOP_MESSAGE, MPI_COMM_WORLD, &status);
+
+		for (int i = 0; i < size; ++i){
+			if (topology[rank][i] ==1){
+				MPI_Send(top, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
+				MPI_Send(bottom, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
+			}
+		}
+	}
+	else{
+		MPI_Recv(top, x, MPI_CHAR, parent, TOP_MESSAGE, MPI_COMM_WORLD, &status);
+		MPI_Recv(bottom, x, MPI_CHAR, parent, TOP_MESSAGE, MPI_COMM_WORLD, &status);
+
+		for (int i = 0; i < size; ++i){
+			if (topology[rank][i] ==1){
+				MPI_Send(top, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
+				MPI_Send(bottom, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
+			}
+		}
+	}
 }
 
 void send_chunks(int size,int topology[size][size],int x,int y,unsigned char *pixels,int rank,int parent){
