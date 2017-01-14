@@ -999,7 +999,6 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 	unsigned char *top = (unsigned char *)calloc(x, sizeof(unsigned char));
 	unsigned char *bottom = (unsigned char *)calloc(x, sizeof(unsigned char));
 
-	if (parent == 0){
 		MPI_Recv(top, x, MPI_CHAR, parent, TOP_MESSAGE, MPI_COMM_WORLD, &status);
 		MPI_Recv(bottom, x, MPI_CHAR, parent, TOP_MESSAGE, MPI_COMM_WORLD, &status);
 
@@ -1009,18 +1008,6 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 				MPI_Send(bottom, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
 			}
 		}
-	}
-	else{
-		MPI_Recv(top, x, MPI_CHAR, parent, TOP_MESSAGE, MPI_COMM_WORLD, &status);
-		MPI_Recv(bottom, x, MPI_CHAR, parent, TOP_MESSAGE, MPI_COMM_WORLD, &status);
-
-		for (int i = 0; i < size; ++i){
-			if (topology[rank][i] ==1){
-				MPI_Send(top, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
-				MPI_Send(bottom, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
-			}
-		}
-	}
 }
 
 void send_chunks(int size,int topology[size][size],int x,int y,unsigned char *pixels,int rank,int parent){
