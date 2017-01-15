@@ -18,6 +18,7 @@
 #define TOP_MESSAGE 60
 #define BOTTOM_MESSAGE 70
 #define SIZE_MESSAGE 80
+#define CHUNK_MESSAGE 90
 
 //tema 3
 #define BLUR 1010
@@ -958,7 +959,16 @@ void parseImages(char *filename, int size, int topology[size][size]){
 					MPI_Send(top, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
 					MPI_Send(bottom, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
 				}
+
 				//send chunk
+				unsigned char *chunk = (unsigned char *)calloc(chunk_size, sizeof(unsigned char));
+				int sent_chunks = 0;
+				chunk = &pixels[current_neighbor * chunk_size];
+				while(sent_chunks < (chunk_size/x)){
+					MPI_Send(&chunk[sent_chunks * x], x, MPI_CHAR, i, CHUNK_MESSAGE, MPI_COMM_WORLD);
+					sent_chunks++;
+				}
+				current_neighbor++;
 			}
 		}
 
@@ -1008,6 +1018,13 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 				MPI_Send(bottom, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
 			}
 		}
+
+		// int received_chunks = 0;
+		// unsigned char *chunk = (unsigned char*)calloc(x * y, sizeof(unsigned char));
+		// while(received_chunks < y){
+		// 	MPI_Recv(&chunk[received_chunks * x], x, MPI_CHAR, i, CHUNK_MESSAGE, MPI_COMM_WORLD, &status);
+		// 	received_chunks++;
+		// }
 }
 
 void send_chunks(int size,int topology[size][size],int x,int y,unsigned char *pixels,int rank,int parent){
