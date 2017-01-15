@@ -1,6 +1,6 @@
 out_file=filtru
 topo=topology.txt
-imgs=imagini.txt
+imgs=imagini_test.txt
 out=statistica.txt
 processes=12
 
