@@ -95,8 +95,6 @@ void printMessage(int source , int destination , int * array , int size , int me
 void printMessageMatrix(int a , int b , int size , int messageType, int direction, int matrix[size][size]);
 void parseImages(char *filename, int size, int topology[size][size]);
 void startProcessing(int parent, int rank, int size, int topoloy[size][size]);
-void send_chunks(int size,int topology[size][size],int x,int y,unsigned char *pixels,int rank,int parent);
-void put_pixels(int chunk_size,unsigned char *pixels,int x,int y, unsigned char **bordered_matrix);
 
 int main(int argc , char ** argv){
 	
@@ -1014,7 +1012,7 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 	MPI_Recv(&x, 1, MPI_INT, parent, SIZE_MESSAGE, MPI_COMM_WORLD, &status);
 	MPI_Recv(&y, 1, MPI_INT, parent, SIZE_MESSAGE, MPI_COMM_WORLD, &status);
 
-
+	current_neighbor = 0;
 	if (num_neighbors > 0){
 		img_x = x;
 		img_y = y/num_neighbors;
@@ -1026,6 +1024,7 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 				MPI_Send(&img_x, 1, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD);
 				MPI_Send(&img_y, 1, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD);
 			}
+			current_neighbor++;
 		}
 	}
 
@@ -1099,7 +1098,7 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 		return;
 	}
 
-
+	current_neighbor = 0;
 	for (i = 0; i < size; ++i){
 		sent_chunks = 0;
 		if (topology[rank][i] == 1 && i != parent){
@@ -1110,36 +1109,7 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 				MPI_Send(&chunk_p[sent_chunks *x], x, MPI_CHAR, i, CHUNK_MESSAGE, MPI_COMM_WORLD);
 				sent_chunks++;
 			}
+			current_neighbor++;
 		}
-	}
-}
-
-void send_chunks(int size,int topology[size][size],int x,int y,unsigned char *pixels,int rank,int parent){
-	int current_neighbor = 0;
-	/*
-	 * Calculate chunks
-	 */
-	int num_neighbors = getNumberOfNeighbors(size, rank, parent, topology);
-	int chunk_size = (x * y)/num_neighbors;
-	int chunk_left_over = (x*y)%num_neighbors;
-	/*
-	 * Border the chunks
-	 */
-	while (num_neighbors > 0){
-		if (topology[rank][current_neighbor] == 1){
-			unsigned char *bordered_matrix = NULL;
-			int start_index = current_neighbor * chunk_size;
-			// put_pixels(chunk_size, pixels[start_index], x, y, &bordered_matrix);
-		}
-	}
-
-}
-
-void put_pixels(int chunk_size,unsigned char *pixels,int x,int y, unsigned char **bordered_matrix){
-	/*
-	 * Initialization
-	 */
-	if (*bordered_matrix == NULL){
-		(*bordered_matrix) =(unsigned char *)calloc(chunk_size + x + x + y + y,sizeof(unsigned char));
 	}
 }
