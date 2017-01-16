@@ -969,9 +969,8 @@ void parseImages(char *filename, int size, int topology[size][size]){
 				}
 
 				//send chunk
-				unsigned char *chunk = (unsigned char *)calloc(chunk_size, sizeof(unsigned char));
 				int sent_chunks = 0;
-				chunk = &pixels[current_neighbor * chunk_size];
+				unsigned char *chunk = &pixels[current_neighbor * chunk_size];
 				
 				while(sent_chunks < y){
 					MPI_Send(&chunk[sent_chunks * x], x, MPI_CHAR, i, CHUNK_MESSAGE, MPI_COMM_WORLD);
@@ -988,13 +987,22 @@ void parseImages(char *filename, int size, int topology[size][size]){
 }
 
 void startProcessing(int parent, int rank, int size, int topology[size][size]){
+
 	MPI_Status status;
 	int effect_type;
+	int num_neighbors = getNumberOfNeighbors(size, rank, parent, topology);
+	int current_neighbor = 0;
+	int received_chunks = 0;
+	int sent_chunks = 0;
+	int img_x = 0;
+	int img_y = 0;
+	unsigned char *chunk_p;
+
 	MPI_Recv(&effect_type, 1, MPI_INT, parent, EFFECT_MESSAGE, MPI_COMM_WORLD, &status);
 
 	int  i = 0;
 	for (i = 0; i < size; ++i){
-		if (topology[rank][i] == 1){
+		if (topology[rank][i] == 1 && i != parent){
 			//send the effect to neighbors
 			MPI_Send(&effect_type, 1, MPI_INT, i, EFFECT_MESSAGE, MPI_COMM_WORLD);
 		}
@@ -1005,11 +1013,18 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 	MPI_Recv(&x, 1, MPI_INT, parent, SIZE_MESSAGE, MPI_COMM_WORLD, &status);
 	MPI_Recv(&y, 1, MPI_INT, parent, SIZE_MESSAGE, MPI_COMM_WORLD, &status);
 
-	for (i = 0; i < size; ++i){
-		if (topology[rank][i] == 1){
-			//send x and y
-			MPI_Send(&x, 1, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD);
-			MPI_Send(&y, 1, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD);
+
+	if (num_neighbors > 0){
+		img_x = x;
+		img_y = y/num_neighbors;
+		for (i = 0; i < size; ++i){
+			if (topology[rank][i] == 1 && i != parent){
+				//send x and y
+				if (current_neighbor == num_neighbors-1)
+					img_y += y%num_neighbors;
+				MPI_Send(&img_x, 1, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD);
+				MPI_Send(&img_y, 1, MPI_INT, i, SIZE_MESSAGE, MPI_COMM_WORLD);
+			}
 		}
 	}
 
@@ -1018,51 +1033,80 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 	unsigned char *top = (unsigned char *)calloc(x, sizeof(unsigned char));
 	unsigned char *bottom = (unsigned char *)calloc(x, sizeof(unsigned char));
 
-		MPI_Recv(top, x, MPI_CHAR, parent, TOP_MESSAGE, MPI_COMM_WORLD, &status);
-		MPI_Recv(bottom, x, MPI_CHAR, parent, TOP_MESSAGE, MPI_COMM_WORLD, &status);
+	MPI_Recv(top, x, MPI_CHAR, parent, TOP_MESSAGE, MPI_COMM_WORLD, &status);
+	MPI_Recv(bottom, x, MPI_CHAR, parent, TOP_MESSAGE, MPI_COMM_WORLD, &status);
 
-		for (int i = 0; i < size; ++i){
-			if (topology[rank][i] ==1){
-				MPI_Send(top, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
-				MPI_Send(bottom, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
+	for (int i = 0; i < size; ++i){
+		if (topology[rank][i] ==1 && i != parent){
+			MPI_Send(top, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
+			MPI_Send(bottom, x, MPI_CHAR, i, TOP_MESSAGE, MPI_COMM_WORLD);
+		}
+	}
+
+	// if (parent == 0){
+		
+	unsigned char *chunk = (unsigned char*)calloc(x * y, sizeof(unsigned char));
+	while(received_chunks < y){
+		MPI_Recv(&chunk[received_chunks * x], x, MPI_CHAR, parent, CHUNK_MESSAGE, MPI_COMM_WORLD, &status);
+		received_chunks++;
+	}
+
+		// FILE *out = fopen("pic1-sharpen2.pgm", "w+");
+		// FILE *out2 = fopen("pic1-sharpen3.pgm", "w+");
+		// fprintf(out, "P2\n");
+		// fprintf(out, "#COMMENT\n");
+		// fprintf(out, "%d %d\n", x, y);
+		// fprintf(out, "255\n");
+		// int i = 0;
+		// if (rank == 1){
+		// 	printf("Rank %d Wrinting in file \n", rank);
+		// 	for (i = 0; i < x * y; ++i){
+		// 		fprintf(out, "%hhu\n", chunk[i]);
+		// 	}
+		// }
+		// fflush(out);
+		
+		// fprintf(out2, "P2\n");
+		// fprintf(out2, "#COMMENT\n");
+		// fprintf(out2, "%d %d\n", x, y);
+		// fprintf(out2, "255\n");
+		// if (rank == 2){
+		// 	for (i = 0; i < x * y; ++i){
+		// 		fprintf(out2, "%hhu\n", chunk[i]);
+		// 	}
+		// }
+		// fflush(out2);
+		/*
+		 *  Send chunks to children
+		 */
+
+	if (num_neighbors == 0){
+		//write in file the chunks
+		printf("Rank %d writing in file\n", rank);
+		char *filename = (char *)malloc(100 * sizeof(char));
+		sprintf(filename, "chunk_%d.pgm", rank);
+		FILE *out2 = fopen(filename, "w+");
+		fprintf(out2, "P2\n");
+		fprintf(out2, "#COMMENT\n");
+		fprintf(out2, "%d %d\n", x, y);
+		fprintf(out2, "255\n");
+		for (i = 0; i < x * y; ++i){
+			fprintf(out2, "%hhu\n", chunk[i]);
+		}
+		fflush(out2);
+		fclose(out2);
+		return;
+	}
+	
+	for (i = 0; i < size; ++i){
+		if (topology[rank][i] == 1 && i != parent){
+			chunk_p = &chunk[current_neighbor * x * img_y];
+			while (sent_chunks < img_y){
+				MPI_Send(&chunk_p[sent_chunks *x], x, MPI_CHAR, i, CHUNK_MESSAGE, MPI_COMM_WORLD);
+				sent_chunks++;
 			}
 		}
-
-		if (parent == 0){
-			printf("Rank %d needs to receive %d\n", rank, y);
-			int received_chunks = 0;
-			unsigned char *chunk = (unsigned char*)calloc(x * y, sizeof(unsigned char));
-			while(received_chunks < y){
-				MPI_Recv(&chunk[received_chunks * x], x, MPI_CHAR, parent, CHUNK_MESSAGE, MPI_COMM_WORLD, &status);
-				received_chunks++;
-			}
-
-			// FILE *out = fopen("pic1-sharpen2.pgm", "w+");
-			// FILE *out2 = fopen("pic1-sharpen3.pgm", "w+");
-			// fprintf(out, "P2\n");
-			// fprintf(out, "#COMMENT\n");
-			// fprintf(out, "%d %d\n", x, y);
-			// fprintf(out, "255\n");
-			// int i = 0;
-			// if (rank == 1){
-			// 	printf("Rank %d Wrinting in file \n", rank);
-			// 	for (i = 0; i < x * y; ++i){
-			// 		fprintf(out, "%hhu\n", chunk[i]);
-			// 	}
-			// }
-			// fflush(out);
-			
-			// fprintf(out2, "P2\n");
-			// fprintf(out2, "#COMMENT\n");
-			// fprintf(out2, "%d %d\n", x, y);
-			// fprintf(out2, "255\n");
-			// if (rank == 2){
-			// 	for (i = 0; i < x * y; ++i){
-			// 		fprintf(out2, "%hhu\n", chunk[i]);
-			// 	}
-			// }
-			// fflush(out2);
-		}
+	}
 }
 
 void send_chunks(int size,int topology[size][size],int x,int y,unsigned char *pixels,int rank,int parent){
