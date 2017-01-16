@@ -996,7 +996,8 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 	int sent_chunks = 0;
 	int img_x = 0;
 	int img_y = 0;
-	unsigned char *chunk_p;
+	unsigned char *chunk;
+	unsigned char *chunk_p; //pointer for sending chunks
 
 	MPI_Recv(&effect_type, 1, MPI_INT, parent, EFFECT_MESSAGE, MPI_COMM_WORLD, &status);
 
@@ -1028,7 +1029,6 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 		}
 	}
 
-	printf("Rank %d received x=%d and y=%d\n", rank, x, y);
 	// //recv top & bottom
 	unsigned char *top = (unsigned char *)calloc(x, sizeof(unsigned char));
 	unsigned char *bottom = (unsigned char *)calloc(x, sizeof(unsigned char));
@@ -1044,8 +1044,9 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 	}
 
 	// if (parent == 0){
-		
-	unsigned char *chunk = (unsigned char*)calloc(x * y, sizeof(unsigned char));
+	received_chunks = 0;
+	chunk = (unsigned char*)calloc(x * y, sizeof(unsigned char));
+	// printf("Rank %d waiting to receive\n", rank);
 	while(received_chunks < y){
 		MPI_Recv(&chunk[received_chunks * x], x, MPI_CHAR, parent, CHUNK_MESSAGE, MPI_COMM_WORLD, &status);
 		received_chunks++;
@@ -1097,9 +1098,13 @@ void startProcessing(int parent, int rank, int size, int topology[size][size]){
 		fclose(out2);
 		return;
 	}
-	
+
+
 	for (i = 0; i < size; ++i){
+		sent_chunks = 0;
 		if (topology[rank][i] == 1 && i != parent){
+			// printf("Rank %d sending to %d \n", rank, i);
+			//position at the beginning of the chunk
 			chunk_p = &chunk[current_neighbor * x * img_y];
 			while (sent_chunks < img_y){
 				MPI_Send(&chunk_p[sent_chunks *x], x, MPI_CHAR, i, CHUNK_MESSAGE, MPI_COMM_WORLD);
@@ -1127,7 +1132,6 @@ void send_chunks(int size,int topology[size][size],int x,int y,unsigned char *pi
 			// put_pixels(chunk_size, pixels[start_index], x, y, &bordered_matrix);
 		}
 	}
-	
 
 }
 
